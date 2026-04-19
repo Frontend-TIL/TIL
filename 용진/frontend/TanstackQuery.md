@@ -186,3 +186,258 @@ const { data } = useQuery({
 
 만약 매우 큰 중첩 객체를 다루는 경우에는 구조적인 비교가 오히려 부담될 수 있고, 데이터가 항상 새로운 참조여야 하거나 데이터가 단순해 깊은 비교가 필요하지 않은 경우에도 `false`로 지정하는 것이 유리할 수 있습니다.
 
+#### meta
+
+`meta`는 쿼리에 대한 추가 정보를 제공할 수 있습니다.
+쿼리 클라이언트 생성의 `queryCache` 옵션에서 호출 쿼리의 추가 정보를 얻을 수 있습니다.
+
+```typescript
+import {
+  QueryClient,
+  QueryCache
+} from '@tanstack/react-query'
+
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (_error, query) => {
+      alert(query.meta?.errorMessage)
+    }
+  })
+})
+```
+
+```typescript
+const { data } = useQuery({
+  queryKey: ['todos'],
+  queryFn: async () => {
+    const response = await fetch('/api/todos')
+    return response.json()
+  },
+  meta: {
+    errorMessage: '투두 리스트를 가져오는 데 실패했습니다.'
+  }
+})
+```
+
+#### 반환 데이터
+
+- `data`: 성공적으로 가져온 데이터
+- `dataUpdatedAt`: 최근에 데이터를 성공적으로 가져온 시간(유닉스 타임스탬프)
+- `error`: 오류 객체. 오류가 발생하지 않았다면 null
+- `errorUpdatedAt`: 최근에 오류가 발생한 시간(유닉스 타임스탬프)
+- `isError`: 쿼리 함수에서의 오류 발생 여부
+- `isPending`: 쿼리가 처음으로 데이터를 가져오는 중인지 여부
+- `isSuccess`: 성공적으로 데이터를 가져왔는지 여부
+- `isLoading`: 쿼리 함수의 첫 번째 가져오기가 진행 중. isFetching && isPending와 같음.
+- `isFetched`: 쿼리의 첫 데이터 가져오기가 완료되었는지 여부
+- `isFetching`: 쿼리 함수가 실행 중.(첫 대기 및 백그라운드 다시 가져오기 포함)
+- `isPaused`: 쿼리 가져오기가 일시 중단됨.
+- `isStale`: 데이터가 신선한지 여부
+- `isRefetching`: 데이터를 다시 가져오는 중인지 여부
+- `isPlaceholderData`: 표시된 데이터가 대체 데이터인지 여부
+- `refetch`: 데이터를 다시 가져오는 함수
+
+#### refetch
+
+`refetch` 함수를 사용하면, 데이터를 항상 새롭게 다시 가져올 수 있습니다.
+
+```typescript
+export default function DelayedData() {
+  const { data, isStale, refetch } = useQuery({
+    queryKey: ['todos'],
+    queryFn: async () => {
+      const response = await fetch('/api/todos')
+      return response.json()
+    },
+    placeholderData: prev => prev
+  })
+  return (
+    <>
+      <div>{data?.time}</div>
+      <div>데이터가 상했나요?: {JSON.stringify(isStale)}</div>
+      <button onClick={() => refetch()}>데이터 가져오기</button>
+    </>
+  )
+}
+```
+
+만약 신선도(`staleTime`) 기반으로 데이터를 가져오려면, `queryClient.fetchQuery()` 메소드를 사용할 수 있습니다.
+주의할 부분은, `queryKey`와 `staleTime`를 기존 쿼리와 동일하게 제공해야 합니다.(`queryFn` 생략 가능)
+
+```typescript
+import { useQuery, useQueryClient, queryOptions } from '@tanstack/react-query'
+
+const todoOptions = queryOptions({
+  queryKey: ['todos'],
+  queryFn: async () => {
+    const response = await fetch('/api/todos')
+    return response.json()
+  },
+  staleTime: 1000 * 60 * 5
+})
+
+export default function DelayedData() {
+  const queryClient = useQueryClient()
+  const { data, isStale } = useQuery(todoOptions)
+    queryFn: async () => {
+      const response = await fetch('/api/todos')
+      return response.json()
+    },
+    placeholderData: prev => prev
+  })
+
+  function fetchData() {
+    queryClient.fetchQuery(todoOptions)
+  }
+
+  return (
+    <>
+      <div>{data?.time}</div>
+      <div>데이터가 상했나요?: {JSON.stringify(isStale)}</div>
+      <button onClick={fetchData}>
+        데이터 가져오기
+      </button>
+    </>
+  )
+}
+```
+
+### useInfiniteQuery
+
+`useInfiniteQuery`는 '더 보기' 버튼을 통해 추가 데이터를 더 가져오거나 무한 스크롤 기능을 구현하기 위한 훅입니다.
+
+```typescript
+const 반환 = useInfiniteQuery<타입>(옵션)
+```
+
+#### 옵션
+
+- `getNextPageParam`: 새로운 다음 페이지를 가져오면, 다음 페이지의 정보로 호출되는 함수. 다음 페이지 번호를 반환하고, 다음 페이지가 없으면 `undefined` 또는 `null`을 반환해야 함.
+- `getPreviousePageParam`: 새로운 이전 페이지를 가져오면, 이전 페이지의 정보로 호출되는 함수. 이전 페이지 번호를 반환하고, 이전 페이지가 없으면 `undefined` 또는 `null`을 반환해야 함.
+- `initialPageParam`: 첫 번째 페이지의 번호
+- `maxPage`: 저장 및 출력할 최대 페이지의 수
+
+#### 반환
+
+- `fetchNextPage`: 다음 페이지를 가져오는 함수
+- `fetchPreviousePage`: 이전 페이지를 가져오는 함수
+- `hasNextPage`: 다음 페이지가 있는지 여부
+- `hasPreviousePage`: 이전 페이지가 있는지 여부
+- `isFetchingNextPage`: 다음 페이지를 가져오는 중인지 여부
+- `isFetchingPreviousePage`: 이전 페이지를 가져오는 중인지 여부
+
+#### 예제
+
+```typescript
+import { useInfiniteQuery } from '@tanstack/react-query'
+
+function Todos() {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['todos'],
+      queryFn: async ({ pageParam = 0 }) => {
+        const response = await fetch(`/api/todos?page=${pageParam}`)
+        return response.json()
+      },
+      initialPageParam: 0,
+      getNextPageParam: (lastPage, allPages) => {
+        const maxPage = Math.max(...allPages.map(page => page.page))
+
+        if (lastPage.Response == 'True' & allPages.length < maxPage) {
+          return maxPage + 1
+        }
+
+        return null
+      },
+    })
+
+  return (
+    <div>
+      {data?.pages.map((page, i) => (
+        <div key={i}>
+          {page.data.map(todo => (
+            <div key={todo.id}>{todo.title}</div>
+          ))}
+        </div>
+      ))}
+      <button
+        onClick={() => fetchNextPage()}
+        disabled={!hasNextPage || isFetchingNextPage}
+      >
+        {isFetchingNextPage
+          ? '로딩 중...'
+          : hasNextPage
+            ? '더 보기'
+            : '마지막 페이지'}
+      </button>
+    </div>
+  )
+}
+```
+
+무한 스크롤 버전
+
+```typescript
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+
+function Todos() {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['todos'],
+      queryFn: async ({ pageParam = 0 }) => {
+        const response = await fetch(`/api/todos?page=${pageParam}`)
+        return response.json()
+      },
+      initialPageParam: 0,
+      getNextPageParam: (lastPage, allPages) => {
+        const maxPage = Math.max(...allPages.map(page => page.page))
+
+        if (lastPage.Response == 'True' && allPages.length < maxPage) {
+          return maxPage + 1
+        }
+
+        return null
+      },
+    })
+
+  const observerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 1.0 }
+    )
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage])
+
+  return (
+    <div>
+      {data?.pages.map((page, i) => (
+        <div key={i}>
+          {page.data.map((todo: any) => (
+            <div key={todo.id}>{todo.title}</div>
+          ))}
+        </div>
+      ))}
+      {/* 관찰 대상 요소 */}
+      <div ref={observerRef} style={{ padding: '20px', textAlign: 'center' }}>
+        {isFetchingNextPage
+          ? '로딩 중...'
+          : hasNextPage
+            ? '스크롤을 내려 더 보기'
+            : '마지막 페이지'}
+      </div>
+    </div>
+  )
+}
+```
