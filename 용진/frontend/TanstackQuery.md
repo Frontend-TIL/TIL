@@ -441,3 +441,81 @@ function Todos() {
   )
 }
 ```
+
+### useMutation
+
+`useMutation`은 데이터 변경 작업을 위한 훅입니다. 이를 통해, 데이터 변경 작업을 처리하고 다양한 성공, 실패, 로딩 등의 상태를 얻을 수 있습니다. 그리고 요청 실패 시의 자동 재시도나 낙관적 업데이트 같은 고급 기능도 쉽게 처리할 수 있습니다.
+
+#### 쿼리(`useQuery`)는 '가져오기'에 집중하는 반면, 변이(`useMutation`)은 '보내기/변경'에 집중합니다.
+
+```typescript
+const 반환 = useMutation(옵션)
+```
+
+#### 옵션
+
+- `gcTime`: 비활성 캐시 데이터가 메모리에 남아 있는 시간
+- `meta`: 활용할 추가 정보를 지정
+- `mutationFn`: 실행할 비동기 변이 함수
+- `mutationKey`: mutation을 식별하기 위한 고유한 키
+- `onMutate`: mutation이 실행되기 직전에 실행되는 함수
+- `onSuccess`: mutation이 성공했을 때 실행되는 함수
+- `onError`: mutation이 실패했을 때 실행되는 함수
+- `onSettled`: mutation이 성공 또는 실패했을 때 실행되는 함수
+- `retry`: 자동 재시도 횟수
+- `retryDelay`: 자동 재시도 간격
+- `scope`: 동시 실행 범위 지정
+- `throwOnError`: mutation이 오류가 발생했을 때 오류를 던질지 여부
+
+#### 반환
+
+- `data`: 성공적으로 가져온 데이터
+- `error`: 오류 객체
+- `isError`: 오류 발생 여부
+- `isPaused`: mutation이 일시 중단되었는지 여부
+- `isPending`: mutation이 실행 중인지 여부
+- `isSuccess`: mutation이 성공했는지 여부
+- `isIdle`: mutation이 실행 전의 초기 상태인지 여부
+- `mutate`: mutation을 실행하는 함수
+- `mutateAsync`: mutation을 비동기적으로 실행하는 함수
+- `reset`: mutation 상태 초기화 함수
+- `variables`: mutation의 실행에 사용된 변수
+
+#### 예제
+
+```typescript
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+
+function Todos() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async (newTodo: string) => {
+      const response = await fetch('/api/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: newTodo }),
+      })
+      return response.json()
+    },
+    onSuccess: () => {
+      // 성공 시 쿼리를 무효화하고 다시 가져옵니다.
+      queryClient.invalidateQueries({ queryKey: ['todos'] })
+    },
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => {
+          mutation.mutate('할 일!')
+        }}
+      >
+        할 일 추가하기
+      </button>
+    </div>
+  )
+}
+```
